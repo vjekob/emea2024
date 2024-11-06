@@ -33,4 +33,21 @@ codeunit 60001 "Test - Demo"
         Assert.AreEqual('DUMMY-GROUP', Customer."Customer Posting Group", 'Customer posting group is not as expected');
     end;
 
+    [Test]
+    procedure CreateCustomer_NoDefaultGroup_Fails()
+    var
+        Customer: Record Customer;
+        SalesSetup: Record "Sales & Receivables Setup";
+    begin
+        // [GIVEN] No default customer posting group
+        SalesSetup.Get();
+        SalesSetup."Default Cust. Posting Group" := '';
+        SalesSetup.Modify(true);
+
+        // [WHEN] Invoking CreateCustomer
+        asserterror Demo.CreateCustomer('DUMMY2', 'Dummy Customer');
+
+        // [THEN] Customer is not created
+        asserterror Customer.Get('DUMMY2');
+    end;
 }
