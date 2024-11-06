@@ -1,0 +1,9 @@
+{
+    "files.exclude": {
+        "**/.git": true,
+        ".vscode/rad.json": true,
+        ".alpackages": true,
+        ".snapshots": true,
+        "*.app": true,
+    }
+}
