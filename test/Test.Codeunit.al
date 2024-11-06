@@ -47,6 +47,9 @@ codeunit 60001 "Test - Demo"
         // [WHEN] Invoking CreateCustomer
         asserterror Demo.CreateCustomer('DUMMY2', 'Dummy Customer');
 
+        // [THEN] Expected error has occurred
+        Assert.ExpectedErrorCode('TestField');
+
         // [THEN] Customer is not created
         asserterror Customer.Get('DUMMY2');
     end;
