@@ -20,7 +20,7 @@ codeunit 60001 "Test - Demo"
         // [GIVEN]
 
         // [WHEN] Invoking CreateCustomer
-        Demo.CreateCustomer();
+        Demo.CreateCustomer('DUMMY', 'Dummy Customer');
 
         // [THEN] Customer is created
         Customer.Get('DUMMY');
