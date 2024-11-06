@@ -1,4 +1,4 @@
-codeunit 50001 Handler
+codeunit 50005 Viewer
 {
     procedure FirstProcedure_Load()
     begin
@@ -10,7 +10,7 @@ codeunit 50001 Handler
 
     end;
 
-    procedure ThirdProcedure_Handle()
+    procedure ThirdProcedure_View()
     begin
 
     end;
