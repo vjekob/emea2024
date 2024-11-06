@@ -11,6 +11,7 @@ codeunit 50000 Demo
         SalesSetup: Record "Sales & Receivables Setup";
     begin
         SalesSetup.Get();
+        SalesSetup.TestField("Default Cust. Posting Group");
 
         Customer."No." := No;
         Customer.Name := Name;
