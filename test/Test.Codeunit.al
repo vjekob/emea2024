@@ -2,6 +2,7 @@ namespace Vjeko.Demos.Test;
 
 using Vjeko.Demos;
 using Microsoft.Sales.Customer;
+using Microsoft.Sales.Setup;
 using System.TestLibraries.Utilities;
 
 codeunit 60001 "Test - Demo"
@@ -16,8 +17,12 @@ codeunit 60001 "Test - Demo"
     procedure CreateCustomer()
     var
         Customer: Record Customer;
+        SalesSetup: Record "Sales & Receivables Setup";
     begin
-        // [GIVEN]
+        // [GIVEN] Default customer posting group
+        SalesSetup.Get();
+        SalesSetup."Default Cust. Posting Group" := 'DUMMY-GROUP';
+        SalesSetup.Modify(true);
 
         // [WHEN] Invoking CreateCustomer
         Demo.CreateCustomer('DUMMY', 'Dummy Customer');
@@ -25,6 +30,7 @@ codeunit 60001 "Test - Demo"
         // [THEN] Customer is created
         Customer.Get('DUMMY');
         Assert.AreEqual('Dummy Customer', Customer.Name, 'Customer name is not as expected');
+        Assert.AreEqual('DUMMY-GROUP', Customer."Customer Posting Group", 'Customer posting group is not as expected');
     end;
 
 }
