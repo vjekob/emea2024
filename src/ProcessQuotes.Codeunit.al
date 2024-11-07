@@ -4,6 +4,7 @@ using System.Threading;
 using Microsoft.Sales.Document;
 using System.Security.User;
 using Microsoft.Sales.Setup;
+using Microsoft.Inventory.Item;
 
 codeunit 50011 ProcessQuotes implements IProcessQuotes
 {
@@ -26,7 +27,7 @@ codeunit 50011 ProcessQuotes implements IProcessQuotes
         if not Controller.FindQuotes(SalesQuote, Controller) then
             exit;
 
-        Controller.MakeAndPostOrders(SalesQuote);
+        Controller.MakeAndPostOrders(SalesQuote, Controller);
     end;
 
     internal procedure FindQuotes(var SalesHeader: Record "Sales Header"; Controller: Interface IProcessQuotes): Boolean
@@ -74,7 +75,105 @@ codeunit 50011 ProcessQuotes implements IProcessQuotes
         SalesHeader.SetRange("Customer Posting Group", CustomerPostingGroup);
     end;
 
-    internal procedure MakeAndPostOrders(var SalesHeader: Record "Sales Header")
+    internal procedure MakeAndPostOrders(var SalesQuote: Record "Sales Header"; Controller: Interface IProcessQuotes)
+    var
+        Converter: Codeunit QuoteToOrder;
+        Releaser: Codeunit ReleaseDocument;
+        Poster: Codeunit PostDocument;
     begin
+        repeat
+            Controller.MakeAndPostOne(SalesQuote, Controller, Converter, Releaser, Poster);
+        until SalesQuote.Next() = 0;
+    end;
+
+    internal procedure MakeAndPostOne(var SalesQuote: Record "Sales Header"; Controller: Interface IProcessQuotes; Converter: Interface IQuoteToOrder; Releaser: Interface IReleaseDocument; Poster: Interface IPostDocument)
+    var
+        SalesOrder: Record "Sales Header";
+    begin
+        if not Controller.ConvertQuoteToOrder(SalesQuote, SalesOrder, Controller, Converter) then
+            exit;
+        Controller.CommitTransaction();
+
+        if not Controller.ReleaseOrder(SalesOrder, Controller, Releaser) then
+            exit;
+        Controller.CommitTransaction();
+
+        if not Controller.PostOrder(SalesOrder, Controller, Poster) then
+            exit;
+        Controller.CommitTransaction();
+    end;
+
+    internal procedure ConvertQuoteToOrder(var SalesQuote: Record "Sales Header"; var SalesOrder: Record "Sales Header"; Controller: Interface IProcessQuotes; Converter: Interface IQuoteToOrder) Result: Boolean
+    begin
+        Result := Converter.Convert(SalesQuote);
+        if Result then
+            Converter.GetSalesOrderHeader(SalesOrder)
+        else
+            Controller.LogError('VD-0001', StrSubstNo('Error converting quote %1 to order.', SalesQuote."No."));
+    end;
+
+    internal procedure ReleaseOrder(var SalesOrder: Record "Sales Header"; Controller: Interface IProcessQuotes; Releaser: Interface IReleaseDocument) Result: Boolean
+    begin
+        Result := Releaser.Release(SalesOrder);
+
+        if not Result then
+            Controller.LogError('VD-0002', StrSubstNo('Error releasing order %1.', SalesOrder."No."));
+    end;
+
+    internal procedure PostOrder(var SalesOrder: Record "Sales Header"; Controller: Interface IProcessQuotes; Poster: Interface IPostDocument) Result: Boolean
+    begin
+        Result := Poster.Post(SalesOrder, true, false);
+
+        if not Result then
+            Controller.LogError('VD-0003', StrSubstNo('Error posting order %1.', SalesOrder."No."));
+    end;
+
+    internal procedure CommitTransaction()
+    begin
+        Commit();
+    end;
+
+    internal procedure LogError(EventId: Text; ErrorMessage: Text)
+    begin
+        LogMessage(EventId, ErrorMessage, Verbosity::Error, DataClassification::SystemMetadata, TelemetryScope::All, '', '');
+    end;
+
+    internal procedure HasApplicableLines(var SalesQuote: Record "Sales Header"; var SalesLine: Record "Sales Line"; Controller: Interface IProcessQuotes): Boolean
+    var
+        Item: Record Item;
+    begin
+        Controller.SetLineFilters(SalesQuote, SalesLine);
+        if not SalesLine.FindSet(false) then
+            exit(false);
+
+        repeat
+            if not Controller.IsLineApplicable(SalesLine, Item, Controller) then
+                exit(false);
+        until SalesLine.Next() = 0;
+
+        exit(true);
+    end;
+
+    internal procedure SetLineFilters(var SalesQuote: Record "Sales Header"; var SalesLine: Record "Sales Line")
+    begin
+        SalesLine.SetRange("Document Type", "Sales Document Type"::Quote);
+        SalesLine.SetRange("Document No.", SalesQuote."No.");
+        SalesLine.SetRange(Type, "Sales Line Type"::Item);
+        SalesLine.SetFilter("No.", '<>%1', '');
+    end;
+
+    internal procedure IsLineApplicable(var SalesLine: Record "Sales Line"; var Item: Record Item; Controller: Interface IProcessQuotes): Boolean
+    begin
+        Controller.GetItem(SalesLine, Item);
+        exit(Item.Inventory > 0);
+    end;
+
+    internal procedure GetItem(var SalesLine: Record "Sales Line"; var Item: Record Item);
+    begin
+        if SalesLine."Location Code" <> '' then
+            Item.SetRange("Location Filter", SalesLine."Location Code");
+        Item.SetAutoCalcFields(Inventory);
+        Item.SetLoadFields(Inventory);
+        Item.Get(SalesLine."No.");
     end;
 }
