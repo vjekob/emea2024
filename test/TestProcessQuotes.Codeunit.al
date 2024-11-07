@@ -141,7 +141,7 @@ codeunit 60003 "Test - ProcessQuotes"
         AtDate: Date;
     begin
         // Act
-        SUT.SetFilters(SalesHeader, 'DUMMY', 20001020D);
+        SUT.SetFilters(SalesHeader, 'DUMMYSP', 'DUMMYPG', 20001020D);
 
         // Assert
         Assert.AreEqual("Sales Document Type"::Quote, SalesHeader.GetRangeMax("Document Type"), 'Document type should be Quote');
@@ -150,7 +150,63 @@ codeunit 60003 "Test - ProcessQuotes"
         Assert.AreEqual("Sales Document Status"::Open, SalesHeader.GetRangeMin(Status), 'Status should be Open');
         Assert.AreEqual(20001020D, SalesHeader.GetRangeMax("Shipment Date"), 'Shipment date should be 2020-10-20');
         Assert.AreEqual(20001020D, SalesHeader.GetRangeMin("Shipment Date"), 'Shipment date should be 2020-10-20');
-        Assert.AreEqual('DUMMY', SalesHeader.GetRangeMax("Salesperson Code"), 'Salesperson code should be DUMMY');
-        Assert.AreEqual('DUMMY', SalesHeader.GetRangeMin("Salesperson Code"), 'Salesperson code should be DUMMY');
+        Assert.AreEqual('DUMMYSP', SalesHeader.GetRangeMax("Salesperson Code"), 'Salesperson code should be DUMMY');
+        Assert.AreEqual('DUMMYSP', SalesHeader.GetRangeMin("Salesperson Code"), 'Salesperson code should be DUMMY');
+        Assert.AreEqual('DUMMYPG', SalesHeader.GetRangeMax("Customer Posting Group"), 'Customer posting group should be DUMMYSP');
+        Assert.AreEqual('DUMMYPG', SalesHeader.GetRangeMin("Customer Posting Group"), 'Customer posting group should be DUMMYSP');
+    end;
+
+    [Test]
+    procedure FindQuotes_NoQuotes_False()
+    var
+        TempSalesHeader: Record "Sales Header" temporary;
+        MockProcessQuotes: Codeunit ProcessQuotesMock;
+        Result: Boolean;
+    begin
+        // Assemble
+        MockProcessQuotes.SetExpected_GetDomesticPostingGroup('DUMMYPG');
+        MockProcessQuotes.SetExpected_GetSalespersonCode('DUMMYSP');
+
+        // Act
+        Result := SUT.FindQuotes(TempSalesHeader, MockProcessQuotes);
+
+        // Assert
+        Assert.IsFalse(Result, 'No quotes should be found');
+    end;
+
+    [Test]
+    procedure FindQuotes_QuotesFound_True()
+    var
+        TempSalesHeader: Record "Sales Header" temporary;
+        MockProcessQuotes: Codeunit ProcessQuotesMock;
+        Result: Boolean;
+    begin
+        // Assemble
+        MockProcessQuotes.SetExpected_GetDomesticPostingGroup('DUMMYPG');
+        MockProcessQuotes.SetExpected_GetSalespersonCode('DUMMYSP');
+        TempSalesHeader.Insert();
+
+        // Act
+        Result := SUT.FindQuotes(TempSalesHeader, MockProcessQuotes);
+
+        // Assert
+        Assert.IsTrue(Result, 'Quotes should be found');
+    end;
+
+    [Test]
+    procedure FindQuotes_Collaboration()
+    var
+        TempSalesHeader: Record "Sales Header" temporary;
+        MockProcessQuotes: Codeunit ProcessQuotesMock;
+    begin
+        // Assemble
+        MockProcessQuotes.SetExpected_GetDomesticPostingGroup('DUMMYPG');
+        MockProcessQuotes.SetExpected_GetSalespersonCode('DUMMYSP');
+
+        // Act
+        SUT.FindQuotes(TempSalesHeader, MockProcessQuotes);
+
+        // Assert
+        Assert.IsTrue(MockProcessQuotes.IsInvoked_SetFilters('DUMMYSP', 'DUMMYPG', Today()), 'SetFilters should be invoked');
     end;
 }
