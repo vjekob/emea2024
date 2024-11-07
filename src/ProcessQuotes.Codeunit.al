@@ -1,13 +1,11 @@
 namespace Vjeko.Demos;
 
-using Microsoft.Inventory.Item;
 using System.Threading;
 using Microsoft.Sales.Document;
-using Microsoft.Sales.Posting;
-using Microsoft.Sales.Setup;
 using System.Security.User;
+using Microsoft.Sales.Setup;
 
-codeunit 50011 ProcessQuotes
+codeunit 50011 ProcessQuotes implements IProcessQuotes
 {
     TableNo = "Job Queue Entry";
 
@@ -17,68 +15,53 @@ codeunit 50011 ProcessQuotes
     end;
 
     procedure ProcessQuotes()
+    begin
+        ProcessQuotes(this);
+    end;
+
+    internal procedure ProcessQuotes(Controller: Interface IProcessQuotes)
     var
-        SalesQuote, SalesOrder : Record "Sales Header";
-        SalesLine: Record "Sales Line";
-        SalesSetup: Record "Sales & Receivables Setup";
-        UserSetup: Record "User Setup";
-        Item: Record Item;
-        QuoteToOrder: Codeunit "Sales-Quote to Order";
-        ReleaseDocument: Codeunit "Release Sales Document";
-        SalesPost: Codeunit "Sales-Post";
-        LinesOK: Boolean;
+        SalesQuote: Record "Sales Header";
+    begin
+        if not Controller.FindQuotes(SalesQuote) then
+            exit;
+
+        Controller.MakeAndPostOrders(SalesQuote);
+    end;
+
+    internal procedure FindQuotes(var SalesHeader: Record "Sales Header"): Boolean
+    begin
+
+    end;
+
+    internal procedure GetDomesticPostingGroup(var SalesSetup: Record "Sales & Receivables Setup"): Code[20]
     begin
         SalesSetup.Get();
         SalesSetup.TestField("VDE Domestic Cust. Post. Group");
-        if UserSetup.Get(UserId()) then
-            if UserSetup."Salespers./Purch. Code" <> '' then
-                SalesQuote.SetRange("Salesperson Code", UserSetup."Salespers./Purch. Code")
-            else
-                if GuiAllowed() then
-                    UserSetup.TestField("Salespers./Purch. Code");
+        exit(SalesSetup."VDE Domestic Cust. Post. Group");
+    end;
 
-        SalesQuote.SetRange("Document Type", SalesQuote."Document Type"::Quote);
-        SalesQuote.SetRange("Status", SalesQuote.Status::Open);
-        SalesQuote.SetRange("Shipment Date", Today());
-        SalesQuote.SetRange("Customer Posting Group", SalesSetup."VDE Domestic Cust. Post. Group");
-        if SalesQuote.FindSet(true) then
-            repeat
-                LinesOK := false;
-                SalesLine.SetRange("Document Type", SalesQuote."Document Type");
-                SalesLine.SetRange("Document No.", SalesQuote."No.");
-                SalesLine.SetRange(Type, "Sales Line Type"::Item);
-                SalesLine.SetFilter("No.", '<>%1', '');
-                if SalesLine.FindSet() then begin
-                    LinesOK := true;
-                    repeat
-                        if SalesQuote."Location Code" <> '' then
-                            Item.SetRange("Location Filter", SalesQuote."Location Code");
-                        Item.SetAutoCalcFields(Inventory);
-                        Item.SetLoadFields(Inventory);
-                        Item.Get(SalesLine."No.");
-                        if Item.Inventory <= 0 then
-                            LinesOK := false;
-                    until SalesLine.Next() = 0;
-                end;
+    internal procedure GetSalespersonCode(var UserSetup: Record "User Setup"; WithGui: Boolean): Code[20]
+    begin
+        if not UserSetup.Get(UserId) then
+            exit;
 
-                if LinesOK then begin
-                    if QuoteToOrder.Run(SalesQuote) then begin
-                        Commit();
-                        QuoteToOrder.GetSalesOrderHeader(SalesOrder);
-                        if ReleaseDocument.Run(SalesOrder) then begin
-                            Commit();
+        if UserSetup."Salespers./Purch. Code" = '' then
+            if WithGui then
+                UserSetup.TestField("Salespers./Purch. Code");
 
-                            SalesOrder.Ship := true;
-                            salesOrder.Invoice := false;
-                            if SalesPost.Run(SalesOrder) then
-                                Commit()
-                            else
-                                LogMessage('VD-0003', StrSubstNo('Error posting sales order %1.', SalesOrder."No."), Verbosity::Error, DataClassification::SystemMetadata, TelemetryScope::All, '', '');
-                        end else
-                            LogMessage('VD-0002', StrSubstNo('Error releasing sales order %1.', SalesOrder."No."), Verbosity::Error, DataClassification::SystemMetadata, TelemetryScope::All, '', '');
-                    end else
-                        LogMessage('VD-0001', StrSubstNo('Error converting quote %1 to order.', SalesQuote."No."), Verbosity::Error, DataClassification::SystemMetadata, TelemetryScope::All, '', '');
-                end;
-            until SalesQuote.Next() = 0;
+        exit(UserSetup."Salespers./Purch. Code");
+    end;
+
+    internal procedure SetFilters(var SalesHeader: Record "Sales Header"; SalespersonCode: Code[20]; AtDate: Date)
+    begin
+        SalesHeader.SetRange("Document Type", "Sales Document Type"::Quote);
+        SalesHeader.SetRange(Status, "Sales Document Status"::Open);
+        SalesHeader.SetRange("Shipment Date", AtDate);
+        SalesHeader.SetRange("Salesperson Code", SalespersonCode);
+    end;
+
+    internal procedure MakeAndPostOrders(var SalesHeader: Record "Sales Header")
+    begin
     end;
 }
